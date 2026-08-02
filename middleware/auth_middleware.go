@@ -10,7 +10,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+// AuthMiddleware sekarang menerima satu argumen string (biasanya untuk membatasi role "owner" atau "kasir")
+func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -30,7 +31,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		tokenString := parts[1]
 		secret := os.Getenv("JWT_SECRET")
 		if secret == "" {
-			secret = "rahasia_kasir_qris" // Fallback yang sama persis dengan di auth_controller
+			secret = "rahasia_kasir_qris"
 		}
 
 		// Membaca dan memverifikasi token
@@ -50,8 +51,20 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Mengambil data dari payload token dan menyimpannya ke context
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if ok && token.Valid {
+			userRole := fmt.Sprintf("%v", claims["role"])
+
+			// Proteksi tambahan: Jika rute membutuhkan role tertentu ("owner" / "kasir")
+			// kita blokir jika token yang dikirim memiliki role yang berbeda.
+			if requiredRole == "owner" || requiredRole == "kasir" {
+				if userRole != requiredRole {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak: Anda tidak memiliki izin untuk halaman ini"})
+					c.Abort()
+					return
+				}
+			}
+
 			c.Set("user_id", claims["user_id"])
-			c.Set("role", claims["role"])
+			c.Set("role", userRole)
 		}
 
 		c.Next()
