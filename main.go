@@ -65,13 +65,14 @@ func main() {
 	r.POST("/api/webhooks/payment", controllers.WebhookPayment)
 	r.GET("/api/analytics/dashboard", middleware.AuthMiddleware("owner"), controllers.GetDashboardAnalytics)
 
-	// Pegawai Routes
-	pegawaiRoutes := r.Group("/api/owner/pegawai")
-	pegawaiRoutes.Use(middleware.AuthMiddleware("owner"))
+	// Pegawai / Users Routes
+	// (SUDAH DIREVISI: Diubah dari "/api/owner/pegawai" menjadi "/api/users" agar sinkron dengan Frontend)
+	userRoutes := r.Group("/api/users")
+	userRoutes.Use(middleware.AuthMiddleware("owner"))
 	{
-		pegawaiRoutes.GET("", controllers.GetPegawai)
-		pegawaiRoutes.POST("", controllers.CreatePegawai)
-		pegawaiRoutes.DELETE("/:id", controllers.DeletePegawai)
+		userRoutes.GET("", controllers.GetPegawai)
+		userRoutes.POST("", controllers.CreatePegawai)
+		userRoutes.DELETE("/:id", controllers.DeletePegawai)
 	}
 
 	r.Run(":8080")
