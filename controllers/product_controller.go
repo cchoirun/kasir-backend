@@ -26,19 +26,21 @@ func GetProducts(c *gin.Context) {
 	})
 }
 
-// CreateProduct: Menambah produk baru (Khusus Owner)
+// CreateProduct: Menambah produk baru
 func CreateProduct(c *gin.Context) {
+	// Hapus binding:"required" untuk mencegah error input 0
 	var input struct {
-		Nama        string  `json:"nama" binding:"required"`
+		Nama        string  `json:"nama"`
 		Kategori    string  `json:"kategori"`
-		Harga       float64 `json:"harga" binding:"required"`
-		Stok        int     `json:"stok" binding:"required"`
+		Harga       float64 `json:"harga"`
+		Stok        int     `json:"stok"`
 		StokMinimum int     `json:"stok_minimum"`
 		FotoProduk  string  `json:"foto_produk"`
 	}
 
+	// Kembalikan pesan err.Error() agar detail kesalahannya terbaca di frontend
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data ditolak: " + err.Error()})
 		return
 	}
 

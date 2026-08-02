@@ -22,26 +22,34 @@ func GetPegawai(c *gin.Context) {
 // CreatePegawai: Owner menambahkan akun kasir baru
 func CreatePegawai(c *gin.Context) {
 	var input struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-		Nama     string `json:"nama" binding:"required"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Nama     string `json:"nama"`
+		Name     string `json:"name"` // Cadangan jika frontend memakai key 'name'
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah: " + err.Error()})
 		return
+	}
+
+	// Antisipasi jika frontend mengirim 'name' alih-alih 'nama'
+	namaPegawai := input.Nama
+	if namaPegawai == "" {
+		namaPegawai = input.Name
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	pegawai := models.User{
 		Username: input.Username,
 		Password: string(hashedPassword),
-		Nama:     input.Nama,
+		Nama:     namaPegawai,
 		Role:     "kasir",
 	}
 
 	if err := config.DB.Create(&pegawai).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat akun pegawai (mungkin username sudah dipakai)"})
+		// Mengembalikan error Conflict agar terlihat jelas bahwa data bentrok
+		c.JSON(http.StatusConflict, gin.H{"error": "Gagal! Username mungkin sudah digunakan oleh akun lain."})
 		return
 	}
 
