@@ -8,23 +8,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ProductInput struct {
-	Nama        string  `json:"nama" binding:"required"`
-	Kategori    string  `json:"kategori"`
-	Harga       float64 `json:"harga" binding:"required"`
-	Stok        int     `json:"stok"`
-	StokMinimum int     `json:"stok_minimum"`
-	FotoURL     string  `json:"foto_url"`
-}
-
 // GetProducts: Mengambil daftar semua produk
 func GetProducts(c *gin.Context) {
 	var products []models.Product
-	if err := config.DB.Where("status = ?", "active").Find(&products).Error; err != nil {
+
+	// Dihapus pengecekan "status" agar tidak memicu Error 500 dari Database.
+	// Kita cukup mengambil semua data produk yang ada.
+	if err := config.DB.Find(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data produk"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"products": products})
+
+	// Frontend Vercel (Axios) umumnya mencari property "data", jadi kita ubah key-nya
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data produk berhasil dimuat",
+		"data":    products,
+	})
 }
 
 // CreateProduct: Menambah produk baru (Khusus Owner)
@@ -52,8 +51,15 @@ func CreateProduct(c *gin.Context) {
 		FotoProduk:  input.FotoProduk,
 	}
 
-	config.DB.Create(&product)
-	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil ditambahkan", "product": product})
+	if err := config.DB.Create(&product).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan produk ke database"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Produk berhasil ditambahkan",
+		"data":    product,
+	})
 }
 
 // UpdateProduct: Mengedit data stok dan detail produk
@@ -91,10 +97,13 @@ func UpdateProduct(c *gin.Context) {
 	}
 
 	config.DB.Save(&product)
-	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil diperbarui"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Produk berhasil diperbarui",
+		"data":    product,
+	})
 }
 
-// DeleteProduct: Menghapus/menonaktifkan produk (Khusus Owner)
+// DeleteProduct: Menghapus produk (Khusus Owner)
 func DeleteProduct(c *gin.Context) {
 	id := c.Param("id")
 	var product models.Product
@@ -104,8 +113,12 @@ func DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	// Soft delete / ubah status jadi inactive
-	config.DB.Model(&product).Update("status", "inactive")
+	// Menghapus data secara langsung (Hard Delete).
+	// (Atau GORM akan otomatis melakukan Soft Delete jika tabelmu menggunakan gorm.Model)
+	if err := config.DB.Delete(&product).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus produk"})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil dinonaktifkan/dihapus"})
+	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil dihapus"})
 }

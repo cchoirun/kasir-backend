@@ -92,7 +92,17 @@ func UpdateProfile(c *gin.Context) {
 
 	user.Nama = input.Nama
 	config.DB.Save(&user)
-	c.JSON(http.StatusOK, gin.H{"message": "Profil berhasil diperbarui"})
+
+	// HARUS mengembalikan data user agar frontend tidak menyimpan "undefined"
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Profil berhasil diperbarui",
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"nama":     user.Nama,
+			"role":     user.Role,
+		},
+	})
 }
 
 // ChangePassword: Mengubah kata sandi
