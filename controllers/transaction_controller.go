@@ -41,10 +41,20 @@ func GetTransactions(c *gin.Context) {
 // GetQrisSimulation: Simulasi pengecekan pembayaran QRIS
 func GetQrisSimulation(c *gin.Context) {
 	id := c.Param("id")
+	var transaction models.Transaction
+
+	if err := config.DB.First(&transaction, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Transaksi tidak ditemukan"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "Simulasi QRIS sukses",
-		"transaction_id": id,
-		"status":         "paid",
+		"message":           "Simulasi QRIS sukses",
+		"transaction_id":    transaction.ID,
+		"qris_reference_id": "QRIS-SIM-" + id,
+		"total_amount":      transaction.TotalAmount,
+		"qr_image_url":      "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=SIMULASI-QRIS-" + id,
+		"status":            "pending",
 	})
 }
 
