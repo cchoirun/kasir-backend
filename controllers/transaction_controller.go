@@ -12,15 +12,15 @@ import (
 func CreateTransaction(c *gin.Context) {
 	var input models.Transaction
 
-	// Bind data dari JSON ke struct input
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah: " + err.Error()})
 		return
 	}
 
-	// Baris input.Tanggal sudah dihapus di sini agar tidak error.
-	// GORM otomatis akan mengisi waktu pembuatan di kolom created_at.
-	config.DB.Create(&input)
+	if err := config.DB.Create(&input).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan transaksi ke database: " + err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Transaksi berhasil disimpan",
