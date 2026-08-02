@@ -3,35 +3,31 @@ package controllers
 import (
 	"kasir-backend/config"
 	"kasir-backend/models"
+	"kasir-backend/utils"
 	"net/http"
-	"time"
+	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Setup JWT Secret (Bisa disesuaikan nanti)
-var jwtSecret = []byte("rahasia_kasir_qris")
-
-// SeedOwner: Fungsi untuk membuat akun Owner default saat aplikasi pertama kali dijalankan
+// SeedOwner: Membuat akun owner default saat aplikasi pertama kali dijalankan
 func SeedOwner() {
 	var count int64
 	config.DB.Model(&models.User{}).Where("role = ?", "owner").Count(&count)
-
 	if count == 0 {
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("owner123"), bcrypt.DefaultCost)
 		owner := models.User{
-			Nama:     "Pemilik Toko",
 			Username: "owner",
-			Password: string(hashedPassword), // Menggunakan Password, bukan PasswordHash
+			Password: string(hashedPassword),
 			Role:     "owner",
+			Nama:     "Owner Toko",
 		}
 		config.DB.Create(&owner)
 	}
 }
 
-// Login: Autentikasi User (Owner / Kasir)
+// Login: Proses autentikasi user
 func Login(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
@@ -45,56 +41,46 @@ func Login(c *gin.Context) {
 
 	var user models.User
 	if err := config.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username tidak ditemukan"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username atau password salah"})
 		return
 	}
 
-	// Bandingkan password input dengan password di database
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password salah"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username atau password salah"})
 		return
 	}
 
-	// Generate JWT Token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
-	})
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "rahasia_kasir_qris"
+	}
 
-	tokenString, err := token.SignedString(jwtSecret)
+	token, err := utils.GenerateToken(user.ID, user.Role, secret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat token otorisasi"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat token"})
 		return
 	}
 
-	// Response sukses
 	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
+		"token": token,
 		"user": gin.H{
 			"id":       user.ID,
-			"nama":     user.Nama,
 			"username": user.Username,
+			"nama":     user.Nama,
 			"role":     user.Role,
 		},
 	})
 }
 
-// UpdateProfile: Mengubah nama, foto, no telepon, dan password
+// UpdateProfile: Mengubah nama user
 func UpdateProfile(c *gin.Context) {
-	userIDClaim, _ := c.Get("user_id")
-	userID := uint(userIDClaim.(float64))
-
+	userID, _ := c.Get("user_id")
 	var input struct {
-		Nama        string `json:"nama"`
-		NoTelepon   string `json:"no_telepon"`
-		FotoProfil  string `json:"foto_profil"`
-		OldPassword string `json:"old_password"`
-		NewPassword string `json:"new_password"`
+		Nama string `json:"nama"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
 		return
 	}
 
@@ -105,32 +91,39 @@ func UpdateProfile(c *gin.Context) {
 	}
 
 	user.Nama = input.Nama
-	user.NoTelepon = input.NoTelepon
-	if input.FotoProfil != "" {
-		user.FotoProfil = input.FotoProfil
+	config.DB.Save(&user)
+	c.JSON(http.StatusOK, gin.H{"message": "Profil berhasil diperbarui"})
+}
+
+// ChangePassword: Mengubah kata sandi
+func ChangePassword(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	var input struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
 	}
 
-	// Jika user juga mengisi kolom password lama dan baru
-	if input.OldPassword != "" && input.NewPassword != "" {
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Password lama salah"})
-			return
-		}
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
-		user.Password = string(hashedPassword)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		return
 	}
 
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Cek password lama
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password lama salah"})
+		return
+	}
+
+	// Hash password baru
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	user.Password = string(hashedPassword)
 	config.DB.Save(&user)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Profil berhasil diperbarui",
-		"user": gin.H{
-			"id":          user.ID,
-			"nama":        user.Nama,
-			"username":    user.Username,
-			"role":        user.Role,
-			"no_telepon":  user.NoTelepon,
-			"foto_profil": user.FotoProfil,
-		},
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diubah"})
 }

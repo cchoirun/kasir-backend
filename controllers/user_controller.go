@@ -9,58 +9,54 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// GetUsers: Mengambil daftar semua kasir
-func GetUsers(c *gin.Context) {
-	var users []models.User
-	// Hanya ambil data akun yang memiliki role 'kasir'
-	config.DB.Where("role = ?", "kasir").Find(&users)
-	c.JSON(http.StatusOK, gin.H{"users": users})
+// GetPegawai: Mengambil seluruh daftar kasir
+func GetPegawai(c *gin.Context) {
+	var pegawai []models.User
+	if err := config.DB.Where("role = ?", "kasir").Find(&pegawai).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data pegawai"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": pegawai})
 }
 
-// CreateUser: Mendaftarkan kasir baru
-func CreateUser(c *gin.Context) {
+// CreatePegawai: Owner menambahkan akun kasir baru
+func CreatePegawai(c *gin.Context) {
 	var input struct {
-		Nama     string `json:"nama" binding:"required"`
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
+		Nama     string `json:"nama" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap"})
-		return
-	}
-
-	// Cek apakah username sudah ada
-	var existingUser models.User
-	if err := config.DB.Where("username = ?", input.Username).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Username sudah digunakan!"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
 		return
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-
-	user := models.User{
-		Nama:     input.Nama,
+	pegawai := models.User{
 		Username: input.Username,
 		Password: string(hashedPassword),
+		Nama:     input.Nama,
 		Role:     "kasir",
 	}
 
-	// PERBAIKAN: Tangkap error jika gagal menyimpan ke database
-	if err := config.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan ke DB: " + err.Error()})
+	if err := config.DB.Create(&pegawai).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat akun pegawai (mungkin username sudah dipakai)"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Kasir berhasil ditambahkan"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Akun pegawai berhasil ditambahkan",
+		"data":    pegawai,
+	})
 }
 
-// DeleteUser: Menghapus akun kasir
-func DeleteUser(c *gin.Context) {
+// DeletePegawai: Owner menghapus akun kasir
+func DeletePegawai(c *gin.Context) {
 	id := c.Param("id")
 	if err := config.DB.Delete(&models.User{}, id).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus kasir"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus pegawai"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Akun kasir berhasil dihapus"})
+	c.JSON(http.StatusOK, gin.H{"message": "Akun pegawai berhasil dihapus"})
 }
