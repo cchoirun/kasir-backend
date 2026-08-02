@@ -31,11 +31,23 @@ func CreateTransaction(c *gin.Context) {
 // GetTransactions: Mengambil riwayat transaksi
 func GetTransactions(c *gin.Context) {
 	var transactions []models.Transaction
-	if err := config.DB.Order("created_at desc").Find(&transactions).Error; err != nil {
+
+	err := config.DB.
+		Preload("Kasir").
+		Preload("Items").
+		Preload("Items.Product").
+		Order("created_at desc").
+		Find(&transactions).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat riwayat transaksi"})
 		return
 	}
-	c.JSON(http.StatusOK, transactions)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Riwayat transaksi berhasil dimuat",
+		"data":    transactions,
+	})
 }
 
 // GetQrisSimulation: Simulasi pengecekan pembayaran QRIS
