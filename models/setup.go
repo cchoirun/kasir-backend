@@ -23,7 +23,8 @@ type Product struct {
 	Harga       float64   `json:"harga"`
 	Stok        int       `json:"stok"`
 	StokMinimum int       `json:"stok_minimum"`
-	FotoProduk  string    `gorm:"type:text" json:"foto_produk"` // BARU: Kolom Foto
+	FotoProduk  string    `gorm:"type:text" json:"foto_produk"`
+	Status      string    `gorm:"type:varchar(20);default:'active'" json:"status"` // BARU: Kolom Status agar bisa di-soft-delete
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

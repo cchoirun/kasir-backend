@@ -12,14 +12,11 @@ import (
 func GetProducts(c *gin.Context) {
 	var products []models.Product
 
-	// Dihapus pengecekan "status" agar tidak memicu Error 500 dari Database.
-	// Kita cukup mengambil semua data produk yang ada.
-	if err := config.DB.Find(&products).Error; err != nil {
+	if err := config.DB.Where("status = ?", "active").Find(&products).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data produk"})
 		return
 	}
 
-	// Frontend Vercel (Axios) umumnya mencari property "data", jadi kita ubah key-nya
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Data produk berhasil dimuat",
 		"data":    products,
@@ -115,12 +112,10 @@ func DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	// Menghapus data secara langsung (Hard Delete).
-	// (Atau GORM akan otomatis melakukan Soft Delete jika tabelmu menggunakan gorm.Model)
-	if err := config.DB.Delete(&product).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus produk"})
+	if err := config.DB.Model(&product).Update("status", "inactive").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menonaktifkan produk"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil dihapus"})
+	c.JSON(http.StatusOK, gin.H{"message": "Produk berhasil dihapus dari katalog"})
 }
