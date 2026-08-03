@@ -115,15 +115,35 @@ func WebhookPayment(c *gin.Context) {
 	})
 }
 
-// GetDashboardAnalytics: Menampilkan ringkasan omzet
+// GetDashboardAnalytics: Menampilkan ringkasan omzet dan transaksi di Dashboard Owner
 func GetDashboardAnalytics(c *gin.Context) {
 	var totalTransaksi int64
-	config.DB.Model(&models.Transaction{}).Count(&totalTransaksi)
+	var totalOmzet float64
+
+	config.DB.Model(&models.Transaction{}).Where("status = ?", "lunas").Count(&totalTransaksi)
+
+	config.DB.Table("transactions").Where("status = ?", "lunas").Select("COALESCE(SUM(total_amount), 0)").Scan(&totalOmzet)
+
+	type TopProduct struct {
+		Nama    string `json:"nama"`
+		Terjual int    `json:"terjual"`
+	}
+	var topProducts []TopProduct
+
+	config.DB.Table("transaction_items").
+		Select("products.nama, SUM(transaction_items.qty) as terjual").
+		Joins("JOIN products ON products.id = transaction_items.product_id").
+		Joins("JOIN transactions ON transactions.id = transaction_items.transaction_id").
+		Where("transactions.status = ?", "lunas").
+		Group("products.id, products.nama").
+		Order("terjual DESC").
+		Limit(5).
+		Scan(&topProducts)
 
 	c.JSON(http.StatusOK, gin.H{
-		"omzet_hari_ini":  0,
+		"total_omzet":     totalOmzet,
 		"total_transaksi": totalTransaksi,
-		"produk_terlaris": []string{},
-		"message":         "Data analitik siap disambungkan",
+		"top_products":    topProducts,
+		"message":         "Data analitik berhasil dimuat",
 	})
 }
