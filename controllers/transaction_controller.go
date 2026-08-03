@@ -4,6 +4,7 @@ import (
 	"kasir-backend/config"
 	"kasir-backend/models"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +16,14 @@ func CreateTransaction(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah: " + err.Error()})
 		return
+	}
+
+	if input.MetodeBayar == "tunai" {
+		input.Status = "lunas"
+		now := time.Now()
+		input.PaidAt = &now
+	} else {
+		input.Status = "pending"
 	}
 
 	if err := config.DB.Create(&input).Error; err != nil {
@@ -60,24 +69,53 @@ func GetQrisSimulation(c *gin.Context) {
 		return
 	}
 
+	// Generate QRIS Reference ID
+	refID := "QRIS-SIM-" + id
+
+	// Simpan Reference ID ke database agar bisa dicocokkan saat Webhook dipanggil
+	config.DB.Model(&transaction).Update("qris_reference_id", refID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":           "Simulasi QRIS sukses",
 		"transaction_id":    transaction.ID,
-		"qris_reference_id": "QRIS-SIM-" + id,
+		"qris_reference_id": refID,
 		"total_amount":      transaction.TotalAmount,
-		"qr_image_url":      "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=SIMULASI-QRIS-" + id,
+		"qr_image_url":      "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + refID,
 		"status":            "pending",
 	})
 }
 
-// WebhookPayment: Endpoint untuk menerima notifikasi dari payment gateway asli nantinya
+// WebhookPayment: Endpoint menerima notifikasi pelunasan QRIS
 func WebhookPayment(c *gin.Context) {
+	var input struct {
+		QrisReferenceID string `json:"qris_reference_id"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data salah"})
+		return
+	}
+
+	// Cari transaksi berdasarkan QRIS Reference ID
+	var transaction models.Transaction
+	if err := config.DB.Where("qris_reference_id = ?", input.QrisReferenceID).First(&transaction).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Transaksi tidak ditemukan"})
+		return
+	}
+
+	// LOGIKA BARU: Update status transaksi menjadi lunas
+	now := time.Now()
+	config.DB.Model(&transaction).Updates(models.Transaction{
+		Status: "lunas",
+		PaidAt: &now,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Webhook pembayaran berhasil diterima",
+		"message": "Pembayaran QRIS berhasil dikonfirmasi dan dilunaskan",
 	})
 }
 
-// GetDashboardAnalytics: Menampilkan ringkasan omzet dan transaksi di Dashboard Owner
+// GetDashboardAnalytics: Menampilkan ringkasan omzet
 func GetDashboardAnalytics(c *gin.Context) {
 	var totalTransaksi int64
 	config.DB.Model(&models.Transaction{}).Count(&totalTransaksi)
