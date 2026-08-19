@@ -64,19 +64,29 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":       user.ID,
-			"username": user.Username,
-			"nama":     user.Nama,
-			"role":     user.Role,
+			"id":          user.ID,
+			"username":    user.Username,
+			"nama":        user.Nama,
+			"role":        user.Role,
+			"no_telepon":  user.NoTelepon,  // Tambahan
+			"foto_profil": user.FotoProfil, // Tambahan
+			"qris_image":  user.QrisImage,  // Tambahan
 		},
 	})
 }
 
-// UpdateProfile: Mengubah nama user
+// UpdateProfile: Mengubah profil, QRIS, dan password user
 func UpdateProfile(c *gin.Context) {
 	userID, _ := c.Get("user_id")
+
+	// 1. Tambahkan semua field yang dikirim dari Frontend
 	var input struct {
-		Nama string `json:"nama"`
+		Nama        string `json:"nama"`
+		NoTelepon   string `json:"no_telepon"`
+		FotoProfil  string `json:"foto_profil"`
+		QrisImage   string `json:"qris_image"`
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -90,17 +100,42 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
+	// 2. Update data teks biasa
 	user.Nama = input.Nama
+	user.NoTelepon = input.NoTelepon
+
+	// 3. Update gambar HANYA jika frontend mengirimkan gambar baru
+	if input.FotoProfil != "" {
+		user.FotoProfil = input.FotoProfil
+	}
+	if input.QrisImage != "" {
+		user.QrisImage = input.QrisImage
+	}
+
+	// 4. Logika Ganti Password (Jika form password diisi)
+	if input.OldPassword != "" && input.NewPassword != "" {
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password lama salah"})
+			return
+		}
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+		user.Password = string(hashedPassword)
+	}
+
+	// Simpan semua perubahan ke database
 	config.DB.Save(&user)
 
-	// HARUS mengembalikan data user agar frontend tidak menyimpan "undefined"
+	// 5. Kembalikan data lengkap agar Local Storage di Frontend ikut terupdate
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profil berhasil diperbarui",
 		"user": gin.H{
-			"id":       user.ID,
-			"username": user.Username,
-			"nama":     user.Nama,
-			"role":     user.Role,
+			"id":          user.ID,
+			"username":    user.Username,
+			"nama":        user.Nama,
+			"role":        user.Role,
+			"no_telepon":  user.NoTelepon,
+			"foto_profil": user.FotoProfil,
+			"qris_image":  user.QrisImage,
 		},
 	})
 }
