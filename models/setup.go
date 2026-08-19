@@ -10,8 +10,9 @@ type User struct {
 	Username   string    `gorm:"unique" json:"username"`
 	Password   string    `json:"-"`
 	Role       string    `json:"role"`
-	NoTelepon  string    `json:"no_telepon"`                   // BARU
-	FotoProfil string    `gorm:"type:text" json:"foto_profil"` // BARU
+	NoTelepon  string    `json:"no_telepon"`
+	FotoProfil string    `gorm:"type:text" json:"foto_profil"`
+	QrisImage  string    `gorm:"type:text" json:"qris_image"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
