@@ -79,7 +79,6 @@ func Login(c *gin.Context) {
 func UpdateProfile(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
-	// 1. Tambahkan semua field yang dikirim dari Frontend
 	var input struct {
 		Nama        string `json:"nama"`
 		NoTelepon   string `json:"no_telepon"`
@@ -100,11 +99,9 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// 2. Update data teks biasa
 	user.Nama = input.Nama
 	user.NoTelepon = input.NoTelepon
 
-	// 3. Update gambar HANYA jika frontend mengirimkan gambar baru
 	if input.FotoProfil != "" {
 		user.FotoProfil = input.FotoProfil
 	}
@@ -112,7 +109,6 @@ func UpdateProfile(c *gin.Context) {
 		user.QrisImage = input.QrisImage
 	}
 
-	// 4. Logika Ganti Password (Jika form password diisi)
 	if input.OldPassword != "" && input.NewPassword != "" {
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password lama salah"})
@@ -123,9 +119,12 @@ func UpdateProfile(c *gin.Context) {
 	}
 
 	// Simpan semua perubahan ke database
-	config.DB.Save(&user)
+	// config.DB.Save(&user)
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan ke database: " + err.Error()})
+		return
+	}
 
-	// 5. Kembalikan data lengkap agar Local Storage di Frontend ikut terupdate
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profil berhasil diperbarui",
 		"user": gin.H{
