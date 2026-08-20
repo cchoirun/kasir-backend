@@ -172,12 +172,11 @@ func ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diubah"})
 }
 
-// GetStoreQris: Mengambil QRIS milik Owner untuk ditampilkan di halaman Kasir
 func GetStoreQris(c *gin.Context) {
 	var owner models.User
 
-	// Cari akun pertama yang rolenya "owner"
-	if err := config.DB.Where("role = ?", "owner").First(&owner).Error; err != nil {
+	// PERBAIKAN: Cari akun "owner" yang kolom qris_image-nya TIDAK KOSONG
+	if err := config.DB.Where("role = ? AND qris_image IS NOT NULL AND qris_image != ?", "owner", "").First(&owner).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"qris_image": ""})
 		return
 	}
