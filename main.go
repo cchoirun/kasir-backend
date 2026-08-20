@@ -66,7 +66,6 @@ func main() {
 	r.GET("/api/analytics/dashboard", middleware.AuthMiddleware("owner"), controllers.GetDashboardAnalytics)
 
 	// Pegawai / Users Routes
-	// (SUDAH DIREVISI: Diubah dari "/api/owner/pegawai" menjadi "/api/users" agar sinkron dengan Frontend)
 	userRoutes := r.Group("/api/users")
 	userRoutes.Use(middleware.AuthMiddleware("owner"))
 	{
