@@ -41,6 +41,7 @@ func main() {
 		authRoutes.PUT("/profile", middleware.AuthMiddleware(""), controllers.UpdateProfile)
 		authRoutes.PUT("/change-password", middleware.AuthMiddleware(""), controllers.ChangePassword)
 	}
+	r.GET("/api/store-qris", middleware.AuthMiddleware(""), controllers.GetStoreQris)
 
 	// Product Routes
 	productRoutes := r.Group("/api/products")
